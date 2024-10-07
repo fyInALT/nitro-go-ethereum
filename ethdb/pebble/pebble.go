@@ -710,23 +710,27 @@ func (b *batch) Reset() {
 
 // Replay replays the batch contents.
 func (b *batch) Replay(w ethdb.KeyValueWriter) error {
+	// FIXME: from eth v14 to fix
 	reader := b.b.Reader()
 	for {
-		kind, k, v, ok := reader.Next()
-		if !ok {
-			break
+		kind, k, v, ok, err := reader.Next()
+		if !ok || err != nil {
+			return err
 		}
 		// The (k,v) slices might be overwritten if the batch is reset/reused,
 		// and the receiver should copy them if they are to be retained long-term.
 		if kind == pebble.InternalKeyKindSet {
-			w.Put(k, v)
+			if err = w.Put(k, v); err != nil {
+				return err
+			}
 		} else if kind == pebble.InternalKeyKindDelete {
-			w.Delete(k)
+			if err = w.Delete(k); err != nil {
+				return err
+			}
 		} else {
 			return fmt.Errorf("unhandled operation, keytype: %v", kind)
 		}
 	}
-	return nil
 }
 
 // pebbleIterator is a wrapper of underlying iterator in storage engine.
